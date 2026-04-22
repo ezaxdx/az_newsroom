@@ -4,12 +4,11 @@ import { useState, useEffect } from "react";
 import { Plus, Trash2, ToggleLeft, ToggleRight, Loader2 } from "lucide-react";
 import { RssSource } from "@/lib/types";
 
-const CATEGORIES = ["AI", "MICE", "TOURISM", "STARTUP", "POLICY", "OPERATIONS", "INDUSTRY"];
-
 const EMPTY_FORM = { url: "", source_name: "", weight: 3, default_category: "AI" };
 
 export default function RssPage() {
   const [sources, setSources] = useState<RssSource[]>([]);
+  const [categories, setCategories] = useState<string[]>(["AI", "MICE", "TOURISM"]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
@@ -17,10 +16,13 @@ export default function RssPage() {
 
   // ── 초기 로드 ──
   useEffect(() => {
-    fetch("/api/admin/rss")
-      .then((r) => r.json())
-      .then((d) => setSources(d.data ?? []))
-      .finally(() => setLoading(false));
+    Promise.all([
+      fetch("/api/admin/rss").then((r) => r.json()),
+      fetch("/api/admin/categories").then((r) => r.json()),
+    ]).then(([rssData, catData]) => {
+      setSources(rssData.data ?? []);
+      setCategories(catData.categories ?? ["AI", "MICE", "TOURISM"]);
+    }).finally(() => setLoading(false));
   }, []);
 
   // ── 토글 ──
@@ -117,7 +119,7 @@ export default function RssPage() {
                 className="h-8 px-3 rounded-md text-sm outline-none"
                 style={{ background: "var(--surface-container-low)", border: "1px solid transparent", color: "var(--on-surface)" }}
               >
-                {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
+                {categories.map((c) => <option key={c}>{c}</option>)}
               </select>
             </div>
             <div className="flex flex-col gap-1">

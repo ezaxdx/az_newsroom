@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ALL_CATEGORIES } from "@/lib/config";
+
 import { Loader2, Sparkles, PenLine, ExternalLink, CheckCircle2 } from "lucide-react";
 
 type Tab = "ai" | "manual";
@@ -31,9 +31,11 @@ const EMPTY: ArticleFields = {
 function Fields({
   fields,
   onChange,
+  categories = ["AI", "MICE", "TOURISM"],
 }: {
   fields: ArticleFields;
   onChange: (f: Partial<ArticleFields>) => void;
+  categories?: string[];
 }) {
   const inputStyle = {
     background: "var(--surface-container-lowest)",
@@ -60,7 +62,7 @@ function Fields({
             onChange={(e) => onChange({ category: e.target.value })}
             style={inputStyle}
           >
-            {ALL_CATEGORIES.map((c) => (
+            {categories.map((c) => (
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
@@ -159,6 +161,14 @@ export default function NewArticlePage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("ai");
   const [fields, setFields] = useState<ArticleFields>({ ...EMPTY });
+  const [categories, setCategories] = useState<string[]>(["AI", "MICE", "TOURISM"]);
+
+  useEffect(() => {
+    fetch("/api/admin/categories")
+      .then((r) => r.json())
+      .then((d) => setCategories(d.categories ?? ["AI", "MICE", "TOURISM"]))
+      .catch(console.error);
+  }, []);
 
   // AI tab state
   const [aiUrl, setAiUrl] = useState("");
@@ -291,7 +301,7 @@ export default function NewArticlePage() {
                 onChange={(e) => update({ category: e.target.value })}
                 style={{ ...inputStyle, flexShrink: 0 }}
               >
-                {ALL_CATEGORIES.map((c) => (
+                {categories.map((c) => (
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
@@ -360,7 +370,7 @@ export default function NewArticlePage() {
             <p className="m-0 font-semibold text-sm mb-4">
               {tab === "ai" ? "내용 검토 및 수정" : "기사 내용 작성"}
             </p>
-            <Fields fields={fields} onChange={update} />
+            <Fields fields={fields} onChange={update} categories={categories} />
           </div>
         )}
 

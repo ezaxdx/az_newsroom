@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 /* ── Mock data (Supabase 미연결 시 사용) ── */
 const MOCK = {
@@ -75,9 +76,27 @@ function StatCard({ label, value, sub }: { label: string; value: string | number
   );
 }
 
+async function fetchNavCategories(): Promise<string[]> {
+  try {
+    const supabase = createAdminClient();
+    const { data } = await supabase
+      .from("curation_settings")
+      .select("nav_categories")
+      .limit(1)
+      .single();
+    return data?.nav_categories ?? ["AI", "MICE", "TOURISM"];
+  } catch {
+    return ["AI", "MICE", "TOURISM"];
+  }
+}
+
 export default async function AnalyticsPage() {
-  const data = await fetchAnalytics();
-  const { totals, funnel, referrers, utmCampaigns, categories, topArticles } = data;
+  const [data, navCategories] = await Promise.all([fetchAnalytics(), fetchNavCategories()]);
+  const { totals, funnel, referrers, utmCampaigns, topArticles } = data;
+  // 카테고리 성과: DB nav_categories 기준으로 필터
+  const categories = data.categories.filter((c) =>
+    navCategories.includes(c.category)
+  );
 
   const detailRate  = totals.view ? ((totals.detail_view / totals.view) * 100).toFixed(1) : "0";
   const outboundRate = totals.view ? ((totals.outbound_click / totals.view) * 100).toFixed(1) : "0";

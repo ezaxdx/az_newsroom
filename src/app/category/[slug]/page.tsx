@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { NewsItem } from "@/lib/types";
-import { ALL_CATEGORIES, DEFAULT_NAV_CATEGORIES } from "@/lib/config";
+import { DEFAULT_NAV_CATEGORIES } from "@/lib/config";
+import { createAdminClient } from "@/lib/supabase/admin";
 import TopBar from "@/components/newsroom/TopBar";
 import Footer from "@/components/newsroom/Footer";
 import CategoryArchive from "@/components/newsroom/CategoryArchive";
@@ -76,7 +77,7 @@ async function fetchCategoryItems(category: string): Promise<NewsItem[]> {
 async function fetchNavCategories(): Promise<string[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return DEFAULT_NAV_CATEGORIES;
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { data } = await supabase
       .from("curation_settings")
       .select("nav_categories")
@@ -89,20 +90,16 @@ async function fetchNavCategories(): Promise<string[]> {
 
 type Props = { params: Promise<{ slug: string }> };
 
-export async function generateStaticParams() {
-  return ALL_CATEGORIES.map((cat) => ({ slug: cat.toLowerCase() }));
-}
+export const dynamic = "force-dynamic";
 
 export default async function CategoryPage({ params }: Props) {
   const { slug } = await params;
   const category = slug.toUpperCase();
 
-  if (!ALL_CATEGORIES.includes(category as typeof ALL_CATEGORIES[number])) notFound();
+  const navCategories = await fetchNavCategories();
+  if (!navCategories.includes(category)) notFound();
 
-  const [items, navCategories] = await Promise.all([
-    fetchCategoryItems(category),
-    fetchNavCategories(),
-  ]);
+  const items = await fetchCategoryItems(category);
 
   return (
     <div className="flex flex-col min-h-screen" style={{ background: "var(--surface)" }}>
