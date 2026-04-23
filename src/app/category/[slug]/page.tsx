@@ -48,6 +48,7 @@ function makeMockItems(category: string): NewsItem[] {
       image_url: null,
       original_url: "#",
       category: category.toUpperCase(),
+      level: null,
       priority_score: 100 - i * 10,
       is_published: true,
       display_order: i + 1,
