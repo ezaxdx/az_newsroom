@@ -55,7 +55,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         ))}
 
         {/* Back to newsroom + Logout */}
-        <div className="mt-auto pt-3 flex flex-col gap-1" style={{ borderTop: "1px solid var(--surface-container-highest)" }}>
+        <div className="mt-2 pt-2 flex flex-col gap-1" style={{ borderTop: "1px solid var(--surface-container-highest)" }}>
           <Link
             href="/"
             className="flex items-center gap-2 px-3 py-2 text-xs font-medium transition-colors hover:bg-[--surface-container-high] rounded-md"
