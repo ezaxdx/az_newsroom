@@ -12,7 +12,7 @@ export type NewsItem = {
   is_published: boolean;
   display_order: number;
   published_at: string;
-  quality_score: number | null;
+  quality_score?: number | null;
   created_at?: string;
 };
 
