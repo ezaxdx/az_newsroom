@@ -110,10 +110,15 @@ export default function RssPage() {
     }
   };
 
-  // 유형별 소스 분리
-  const rssSources = sources.filter((s) => (s.source_type ?? "rss") === "rss");
-  const urlSources = sources.filter((s) => s.source_type === "url");
-  const apiSources = sources.filter((s) => s.source_type === "api");
+  // 카테고리 필터
+  const [filterCat, setFilterCat] = useState("ALL");
+  const allCats = ["ALL", ...Array.from(new Set(sources.map((s) => s.default_category))).sort()];
+  const filteredSources = filterCat === "ALL" ? sources : sources.filter((s) => s.default_category === filterCat);
+
+  // 유형별 소스 분리 (필터 적용)
+  const rssSources = filteredSources.filter((s) => (s.source_type ?? "rss") === "rss");
+  const urlSources = filteredSources.filter((s) => s.source_type === "url");
+  const apiSources = filteredSources.filter((s) => s.source_type === "api");
 
   const meta = TYPE_META[form.source_type];
 
@@ -329,6 +334,31 @@ export default function RssPage() {
               취소
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ── 카테고리 필터 ── */}
+      {!loading && sources.length > 0 && (
+        <div className="flex gap-2 mb-5 flex-wrap">
+          {allCats.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setFilterCat(cat)}
+              className="px-3 py-1 rounded-full text-[0.7rem] font-semibold tracking-wide uppercase transition-colors"
+              style={{
+                background: filterCat === cat ? "var(--primary)" : "var(--surface-container-highest)",
+                color: filterCat === cat ? "#fff" : "var(--on-surface-variant)",
+                border: "none", cursor: "pointer",
+              }}
+            >
+              {cat}
+              {cat !== "ALL" && (
+                <span className="ml-1 opacity-70">
+                  {sources.filter((s) => s.default_category === cat).length}
+                </span>
+              )}
+            </button>
+          ))}
         </div>
       )}
 
