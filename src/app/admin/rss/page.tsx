@@ -415,6 +415,22 @@ function SourceCard({
 }) {
   const type = (source.source_type ?? "rss") as "rss" | "url" | "api";
   const Icon = TYPE_META[type].icon;
+  const [editingWeight, setEditingWeight] = useState(false);
+  const [weight, setWeight] = useState(source.weight);
+  const [savingWeight, setSavingWeight] = useState(false);
+
+  const saveWeight = async () => {
+    if (weight === source.weight) { setEditingWeight(false); return; }
+    setSavingWeight(true);
+    await fetch("/api/admin/rss", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: source.id, weight }),
+    });
+    setSavingWeight(false);
+    setEditingWeight(false);
+    source.weight = weight;
+  };
 
   return (
     <div
@@ -456,15 +472,51 @@ function SourceCard({
         )}
       </div>
 
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-medium" style={{ color: "var(--on-surface-variant)" }}>가중치</span>
-        <div className="flex gap-0.5">
-          {Array.from({ length: 10 }, (_, i) => (
-            <span key={i} className="w-1.5 h-4 rounded-sm"
-              style={{ background: i < source.weight ? "var(--primary)" : "var(--surface-container-highest)" }} />
-          ))}
-        </div>
-        <span className="text-xs font-bold w-4">{source.weight}</span>
+      {/* 가중치 */}
+      <div className="flex items-center gap-2 flex-shrink-0">
+        {editingWeight ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium" style={{ color: "var(--on-surface-variant)" }}>가중치</span>
+            <input
+              type="range" min={1} max={10} value={weight}
+              onChange={(e) => setWeight(Number(e.target.value))}
+              className="w-20"
+              autoFocus
+            />
+            <span className="text-xs font-bold w-4">{weight}</span>
+            <button
+              onClick={saveWeight}
+              disabled={savingWeight}
+              className="h-6 px-2 rounded text-[0.65rem] font-semibold"
+              style={{ background: "var(--primary)", color: "#fff", border: "none", cursor: "pointer" }}
+            >
+              {savingWeight ? "..." : "저장"}
+            </button>
+            <button
+              onClick={() => { setEditingWeight(false); setWeight(source.weight); }}
+              className="h-6 px-2 rounded text-[0.65rem] font-semibold"
+              style={{ background: "var(--surface-container-highest)", color: "var(--on-surface-variant)", border: "none", cursor: "pointer" }}
+            >
+              취소
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setEditingWeight(true)}
+            className="flex items-center gap-2 transition-opacity hover:opacity-70"
+            style={{ background: "transparent", border: "none", cursor: "pointer" }}
+            title="클릭해서 가중치 변경"
+          >
+            <span className="text-xs font-medium" style={{ color: "var(--on-surface-variant)" }}>가중치</span>
+            <div className="flex gap-0.5">
+              {Array.from({ length: 10 }, (_, i) => (
+                <span key={i} className="w-1.5 h-4 rounded-sm"
+                  style={{ background: i < weight ? "var(--primary)" : "var(--surface-container-highest)" }} />
+              ))}
+            </div>
+            <span className="text-xs font-bold w-4">{weight}</span>
+          </button>
+        )}
       </div>
 
       <div className="flex items-center gap-1">
