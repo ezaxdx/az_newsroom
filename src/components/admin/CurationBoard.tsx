@@ -167,9 +167,13 @@ export default function CurationBoard({
       const text = await res.text();
       let json: Record<string, unknown>;
       try { json = JSON.parse(text); }
-      catch { throw new Error("서버 응답 오류 — 실행 시간 초과일 수 있습니다. RSS 소스 수를 줄이거나 잠시 후 다시 시도해주세요."); }
-      if (!res.ok) throw new Error((json.error as string) ?? "실패");
-      setRunResult(`✅ 생성 ${json.created}건 / 중복 건너뜀 ${json.skipped}건 / 실패 ${json.failed}건`);
+      catch { throw new Error(`서버 응답 파싱 실패 (status: ${res.status})\n${text.slice(0, 300)}`); }
+      if (!res.ok) throw new Error((json.error as string) ?? `HTTP ${res.status}`);
+      if (json.message) {
+        setRunResult(`⏳ ${json.message}`);
+      } else {
+        setRunResult(`✅ 생성 ${json.created}건 / 중복 건너뜀 ${json.skipped}건 / 실패 ${json.failed}건`);
+      }
       router.refresh();
     } catch (e) {
       setRunResult(`❌ ${e instanceof Error ? e.message : "오류 발생"}`);
