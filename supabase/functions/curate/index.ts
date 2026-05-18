@@ -259,8 +259,16 @@ function decodeBase64(data: string): string {
 }
 
 /* ── Gmail HTML 본문 추출 ── */
-// deno-lint-ignore no-explicit-any
-function extractHtmlBody(payload: any): string {
+interface GmailPart {
+  mimeType?: string;
+  body?: { data?: string };
+  parts?: GmailPart[];
+}
+interface GmailHeader { name: string; value: string }
+interface GmailMessage {
+  payload?: GmailPart & { headers?: GmailHeader[] };
+}
+function extractHtmlBody(payload: GmailPart): string {
   if (!payload) return "";
   if (payload.parts) {
     for (const part of payload.parts) {
@@ -337,11 +345,11 @@ async function fetchGmailNewsletters(
         `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
-      const detail = await detailRes.json();
+      const detail: GmailMessage = await detailRes.json();
       const headers = detail.payload?.headers ?? [];
-      const subject = headers.find((h: { name: string }) => h.name === "Subject")?.value ?? "(제목 없음)";
-      const date = headers.find((h: { name: string }) => h.name === "Date")?.value ?? "";
-      const htmlBody = extractHtmlBody(detail.payload);
+      const subject = headers.find((h) => h.name === "Subject")?.value ?? "(제목 없음)";
+      const date = headers.find((h) => h.name === "Date")?.value ?? "";
+      const htmlBody = extractHtmlBody(detail.payload ?? {});
       if (!htmlBody) continue;
       const articleLinks = extractArticleLinks(htmlBody, config.sender_filter);
       if (articleLinks.length === 0) {
