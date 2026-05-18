@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
 import { NewsItem } from "@/lib/types";
 import { DEFAULT_NAV_CATEGORIES } from "@/lib/config";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -61,7 +60,7 @@ function makeMockItems(category: string): NewsItem[] {
 async function fetchCategoryItems(category: string): Promise<NewsItem[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return makeMockItems(category);
   try {
-    const supabase = await createClient();
+    const supabase = createAdminClient();
     const { data, error } = await supabase
       .from("news")
       .select("*")
