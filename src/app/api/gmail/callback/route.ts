@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { google } from "googleapis";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { encryptToken } from "@/lib/token-crypto";
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
@@ -22,11 +23,17 @@ export async function GET(req: NextRequest) {
   try {
     const { tokens } = await oauth2Client.getToken(code);
 
+    // 토큰 암호화 후 저장
+    const [encAccessToken, encRefreshToken] = await Promise.all([
+      tokens.access_token ? encryptToken(tokens.access_token) : Promise.resolve(null),
+      tokens.refresh_token ? encryptToken(tokens.refresh_token) : Promise.resolve(null),
+    ]);
+
     const supabase = createAdminClient();
     const { error: dbError } = await supabase.from("gmail_tokens").upsert({
       id: "singleton", // 단일 레코드 유지
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
+      access_token: encAccessToken,
+      refresh_token: encRefreshToken,
       expiry_date: tokens.expiry_date,
       updated_at: new Date().toISOString(),
     });

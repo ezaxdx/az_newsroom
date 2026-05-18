@@ -225,6 +225,44 @@ async function fetchApiData(
   }
 }
 
+/* ── Gmail 토큰 복호화 (AES-GCM) ── */
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2)
+    bytes[i / 2] = parseInt(hex.slice(i, i + 2), 16);
+  return bytes;
+}
+
+async function decryptToken(encrypted: string): Promise<string> {
+  const keyHex = Deno.env.get("GMAIL_ENCRYPTION_KEY");
+  if (!keyHex) throw new Error("GMAIL_ENCRYPTION_KEY 없음");
+  const [ivHex, ciphertextHex] = encrypted.split(":");
+  if (!ivHex || !ciphertextHex) return encrypted; // 암호화 전 평문 토큰 하위 호환
+  const key = await crypto.subtle.importKey(
+    "raw", hexToBytes(keyHex.slice(0, 64)), { name: "AES-GCM" }, false, ["decrypt"]
+  );
+  const decrypted = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv: hexToBytes(ivHex) },
+    key,
+    hexToBytes(ciphertextHex)
+  );
+  return new TextDecoder().decode(decrypted);
+}
+
+async function encryptToken(plaintext: string): Promise<string> {
+  const keyHex = Deno.env.get("GMAIL_ENCRYPTION_KEY");
+  if (!keyHex) return plaintext;
+  const key = await crypto.subtle.importKey(
+    "raw", hexToBytes(keyHex.slice(0, 64)), { name: "AES-GCM" }, false, ["encrypt"]
+  );
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ciphertext = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv }, key, new TextEncoder().encode(plaintext)
+  );
+  const toHex = (b: Uint8Array) => Array.from(b).map((x) => x.toString(16).padStart(2, "0")).join("");
+  return `${toHex(iv)}:${toHex(new Uint8Array(ciphertext))}`;
+}
+
 /* ── Gmail REST API — 토큰 갱신 ── */
 async function refreshGmailToken(refreshToken: string): Promise<string | null> {
   try {
@@ -240,12 +278,13 @@ async function refreshGmailToken(refreshToken: string): Promise<string | null> {
     });
     const json = await res.json();
     if (!json.access_token) return null;
+    const encAccess = await encryptToken(json.access_token);
     await supabase.from("gmail_tokens").update({
-      access_token: json.access_token,
+      access_token: encAccess,
       expiry_date: Date.now() + (json.expires_in ?? 3600) * 1000,
       updated_at: new Date().toISOString(),
     }).eq("id", "singleton");
-    return json.access_token;
+    return json.access_token; // 복호화된 값 반환 (이후 API 호출에 사용)
   } catch {
     return null;
   }
@@ -318,10 +357,17 @@ async function fetchGmailNewsletters(
     return [];
   }
 
-  let accessToken = tokenRow.access_token;
+  // 저장된 토큰 복호화
+  let accessToken: string | null = null;
+  try {
+    accessToken = tokenRow.access_token ? await decryptToken(tokenRow.access_token) : null;
+  } catch { accessToken = null; }
+
   const isExpired = !accessToken || (tokenRow.expiry_date && Date.now() > tokenRow.expiry_date - 60000);
   if (isExpired) {
-    accessToken = await refreshGmailToken(tokenRow.refresh_token);
+    const decryptedRefresh = tokenRow.refresh_token ? await decryptToken(tokenRow.refresh_token).catch(() => tokenRow.refresh_token) : null;
+    if (!decryptedRefresh) { console.error("[Gmail] refresh_token 없음"); return []; }
+    accessToken = await refreshGmailToken(decryptedRefresh);
     if (!accessToken) { console.error("[Gmail] 토큰 갱신 실패"); return []; }
   }
 
