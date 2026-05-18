@@ -464,6 +464,13 @@ Deno.serve(async (req) => {
     const catLevelPrompts = allLevelPrompts[category] ?? {};
 
     const insertArticle = async (articleText: string, url: string, image_url: string | null, pubDate?: string) => {
+      // 원문이 너무 짧으면 (봇 차단·접근 불가) 스킵 — 환각 기사 방지
+      if (articleText.length < 200) {
+        console.log(`[SKIP] 원문 너무 짧음 (${articleText.length}자): ${url}`);
+        results.skipped++;
+        existingUrls.add(url);
+        return;
+      }
       const generated = await generateArticle(apiKey, articleText, url, setting.persona, setting.audience, setting.keywords, catLevelPrompts);
       if (!generated) { results.failed++; return; }
       const score = generated.quality_score ?? 5;
