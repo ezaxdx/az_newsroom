@@ -1,13 +1,26 @@
 "use client";
 
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
 import Link from "next/link";
 
 type Props = {
   navCategories: string[];
+  initialQuery?: string;
 };
 
-export default function TopBar({ navCategories }: Props) {
+export default function TopBar({ navCategories, initialQuery = "" }: Props) {
+  const router = useRouter();
+  const [query, setQuery] = useState(initialQuery);
+
+  const handleSearch = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== "Enter") return;
+    const q = query.trim();
+    if (!q) return;
+    router.push(`/search?q=${encodeURIComponent(q)}`);
+  };
+
   return (
     <header
       className="sticky top-0 z-50 w-full"
@@ -45,6 +58,9 @@ export default function TopBar({ navCategories }: Props) {
               type="search"
               placeholder="이슈, 키워드 검색"
               aria-label="검색"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={handleSearch}
               className="h-8 w-56 rounded-md pl-8 pr-3 text-sm outline-none"
               style={{
                 background: "var(--surface-container-low)",

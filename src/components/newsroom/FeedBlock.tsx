@@ -9,9 +9,15 @@ type Props = {
 };
 
 const LEVEL_STYLE: Record<string, { bg: string; color: string }> = {
-  Beginner: { bg: "var(--surface-container-highest)", color: "var(--on-surface-variant)" },
-  Intermediate: { bg: "rgba(26,28,29,0.72)", color: "#fff" },
-  Advanced: { bg: "var(--primary)", color: "#fff" },
+  Beginner:     { bg: "var(--surface-container-highest)", color: "var(--on-surface-variant)" },
+  Intermediate: { bg: "rgba(26,28,29,0.72)",              color: "#fff" },
+  Advanced:     { bg: "var(--primary)",                   color: "#fff" },
+};
+
+const CATEGORY_GRADIENT: Record<string, string> = {
+  AI:      "radial-gradient(circle at 60% 40%, #1a3a5c, #0d1b2a)",
+  MICE:    "radial-gradient(circle at 60% 40%, #1a3a2a, #0d1f16)",
+  TOURISM: "radial-gradient(circle at 60% 40%, #3a2a1a, #1f150d)",
 };
 
 export default function FeedBlock({ label, items, onOpen }: Props) {
@@ -46,7 +52,9 @@ export default function FeedBlock({ label, items, onOpen }: Props) {
               className="relative w-full mb-3 rounded overflow-hidden"
               style={{
                 aspectRatio: "16/9",
-                background: "var(--surface-container-highest)",
+                background: item.image_url
+                  ? "var(--surface-container-highest)"
+                  : (CATEGORY_GRADIENT[item.category] ?? "var(--surface-container-highest)"),
               }}
             >
               {item.image_url && (

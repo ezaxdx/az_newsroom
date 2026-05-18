@@ -169,7 +169,7 @@ const MOCK_NEWS: NewsItem[] = [
   },
 ];
 
-const CATEGORY_ORDER = ["AI", "MICE", "TOURISM", "STARTUP", "POLICY", "OPERATIONS", "INDUSTRY"];
+const CATEGORY_ORDER = ["MICE", "TOURISM", "AI", "STARTUP", "POLICY", "OPERATIONS", "INDUSTRY"];
 
 function groupByCategory(items: NewsItem[]) {
   const map = new Map<string, NewsItem[]>();

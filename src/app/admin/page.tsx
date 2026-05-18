@@ -77,9 +77,10 @@ async function fetchAllNews(): Promise<NewsItem[]> {
 async function fetchSettings(): Promise<{
   qualityThresholds: { auto_publish: number; staging: number };
   displayWindowDays: number;
+  scheduleDays: number[];
 }> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL)
-    return { qualityThresholds: { auto_publish: 8, staging: 5 }, displayWindowDays: 4 };
+    return { qualityThresholds: { auto_publish: 8, staging: 5 }, displayWindowDays: 4, scheduleDays: [2, 4] };
   try {
     const supabase = createAdminClient();
     const { data } = await supabase
@@ -89,15 +90,16 @@ async function fetchSettings(): Promise<{
       .single();
     const qualityThresholds = data?.quality_thresholds ?? { auto_publish: 8, staging: 5 };
     const schedule = data?.auto_schedule ?? { enabled: false, days: [] };
-    const displayWindowDays = schedule.enabled && schedule.days?.length > 1
-      ? calcDisplayWindow(schedule.days)
+    const scheduleDays: number[] = schedule.days ?? [];
+    const displayWindowDays = schedule.enabled && scheduleDays.length > 1
+      ? calcDisplayWindow(scheduleDays)
       : 4;
-    return { qualityThresholds, displayWindowDays };
-  } catch { return { qualityThresholds: { auto_publish: 8, staging: 5 }, displayWindowDays: 4 }; }
+    return { qualityThresholds, displayWindowDays, scheduleDays };
+  } catch { return { qualityThresholds: { auto_publish: 8, staging: 5 }, displayWindowDays: 4, scheduleDays: [2, 4] }; }
 }
 
 export default async function AdminPage() {
-  const [news, { qualityThresholds, displayWindowDays }] = await Promise.all([
+  const [news, { qualityThresholds, displayWindowDays, scheduleDays }] = await Promise.all([
     fetchAllNews(),
     fetchSettings(),
   ]);
@@ -125,7 +127,7 @@ export default async function AdminPage() {
         ))}
       </div>
 
-      <CurationBoard initialNews={news} qualityThresholds={qualityThresholds} displayWindowDays={displayWindowDays} />
+      <CurationBoard initialNews={news} qualityThresholds={qualityThresholds} displayWindowDays={displayWindowDays} scheduleDays={scheduleDays} />
     </div>
   );
 }

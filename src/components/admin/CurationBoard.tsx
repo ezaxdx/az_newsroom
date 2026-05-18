@@ -10,10 +10,18 @@ import { NewsItem } from "@/lib/types";
 
 type Tab = "live" | "staging" | "archive";
 
+const DAY_KO: Record<number, string> = { 0: "일", 1: "월", 2: "화", 3: "수", 4: "목", 5: "금", 6: "토" };
+
+function formatScheduleDays(days: number[]): string {
+  if (!days || days.length === 0) return "";
+  return [...days].sort((a, b) => a - b).map((d) => DAY_KO[d] ?? "").join("·");
+}
+
 type Props = {
   initialNews: NewsItem[];
   qualityThresholds?: { auto_publish: number; staging: number };
   displayWindowDays?: number;
+  scheduleDays?: number[];
 };
 
 function makeWindowMs(days: number) {
@@ -31,6 +39,7 @@ export default function CurationBoard({
   initialNews,
   qualityThresholds = { auto_publish: 8, staging: 5 },
   displayWindowDays = 4,
+  scheduleDays = [],
 }: Props) {
   const router = useRouter();
   const [items, setItems] = useState<NewsItem[]>(initialNews);
@@ -285,7 +294,10 @@ export default function CurationBoard({
         <div className="mb-4 px-3 py-2 rounded-md text-xs flex items-center gap-2"
           style={{ background: "rgba(var(--primary-rgb, 26,115,232),0.07)", color: "var(--primary)" }}>
           <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: "var(--primary)" }} />
-          발행 후 {displayWindowDays}일 이내 기사가 메인 페이지에 표시됩니다 · 현재 {live.length}건 노출 중
+          {scheduleDays.length > 0
+            ? `${formatScheduleDays(scheduleDays)} 큐레이션 기준 최근 ${displayWindowDays}일 기사가 메인 페이지에 표시됩니다 · 현재 ${live.length}건 노출 중`
+            : `발행 후 ${displayWindowDays}일 이내 기사가 메인 페이지에 표시됩니다 · 현재 ${live.length}건 노출 중`
+          }
         </div>
       )}
 

@@ -1,10 +1,12 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Search, Calendar } from "lucide-react";
+import { Search, Calendar, ChevronDown } from "lucide-react";
 import { NewsItem } from "@/lib/types";
 import { logEvent } from "@/lib/analytics";
 import InsightModal from "./InsightModal";
+
+const DEFAULT_DATE_GROUPS = 4;
 
 type Props = {
   category: string;
@@ -26,9 +28,15 @@ function groupByDate(items: NewsItem[]) {
 }
 
 const LEVEL_STYLE: Record<string, { bg: string; color: string }> = {
-  Beginner: { bg: "var(--surface-container-highest)", color: "var(--on-surface-variant)" },
-  Intermediate: { bg: "rgba(26,28,29,0.72)", color: "#fff" },
-  Advanced: { bg: "var(--primary)", color: "#fff" },
+  Beginner:     { bg: "var(--surface-container-highest)", color: "var(--on-surface-variant)" },
+  Intermediate: { bg: "rgba(26,28,29,0.72)",              color: "#fff" },
+  Advanced:     { bg: "var(--primary)",                   color: "#fff" },
+};
+
+const CATEGORY_GRADIENT: Record<string, string> = {
+  AI:      "radial-gradient(circle at 60% 40%, #1a3a5c, #0d1b2a)",
+  MICE:    "radial-gradient(circle at 60% 40%, #1a3a2a, #0d1f16)",
+  TOURISM: "radial-gradient(circle at 60% 40%, #3a2a1a, #1f150d)",
 };
 
 export default function CategoryArchive({ category, items }: Props) {
@@ -37,6 +45,9 @@ export default function CategoryArchive({ category, items }: Props) {
   const [dateTo, setDateTo] = useState("");
   const [levelFilter, setLevelFilter] = useState<string>("Total");
   const [activeItem, setActiveItem] = useState<NewsItem | null>(null);
+  const [showAll, setShowAll] = useState(false);
+
+  const hasFilter = !!(search || dateFrom || dateTo || levelFilter !== "Total");
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
@@ -53,6 +64,9 @@ export default function CategoryArchive({ category, items }: Props) {
   }, [items, search, dateFrom, dateTo, levelFilter]);
 
   const grouped = groupByDate(filtered);
+  // 필터 없을 때는 기본 4개 날짜 그룹만 표시
+  const visibleGroups = hasFilter || showAll ? grouped : grouped.slice(0, DEFAULT_DATE_GROUPS);
+  const hasMore = !hasFilter && !showAll && grouped.length > DEFAULT_DATE_GROUPS;
 
   const handleOpen = (item: NewsItem) => {
     setActiveItem(item);
@@ -172,7 +186,7 @@ export default function CategoryArchive({ category, items }: Props) {
               {/* Flexible grid: 1~4 columns based on article count */}
               <div
                 className="grid gap-6"
-                style={{ gridTemplateColumns: `repeat(${Math.min(dayItems.length, 4)}, 1fr)` }}
+                style={{ gridTemplateColumns: "repeat(4, 1fr)" }}
               >
                 {dayItems.map((item) => (
                   <article
@@ -183,7 +197,12 @@ export default function CategoryArchive({ category, items }: Props) {
                     {/* Thumbnail + level badge */}
                     <div
                       className="relative w-full mb-3 rounded overflow-hidden"
-                      style={{ aspectRatio: "16/9", background: "var(--surface-container-highest)" }}
+                      style={{
+                        aspectRatio: "16/9",
+                        background: item.image_url
+                          ? "var(--surface-container-highest)"
+                          : (CATEGORY_GRADIENT[item.category] ?? "var(--surface-container-highest)"),
+                      }}
                     >
                       {item.image_url && (
                         // eslint-disable-next-line @next/next/no-img-element

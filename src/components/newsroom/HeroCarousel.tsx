@@ -118,14 +118,27 @@ export default function HeroCarousel({ slides, onOpen, interval = 5000 }: Props)
 
           {/* 콘텐츠 */}
           <div className="relative flex flex-col justify-end h-full p-9" style={{ minHeight: "460px" }}>
-            {/* 카테고리 pill + Featured date */}
-            <div className="flex items-center gap-3 mb-4">
+            {/* 카테고리 pill + Level badge + Featured date */}
+            <div className="flex items-center gap-3 mb-4 flex-wrap">
               <span
                 className="inline-flex px-3 py-1 rounded-full text-[0.7rem] font-bold tracking-[0.06em] uppercase"
                 style={{ background: "#000", color: "#fff" }}
               >
                 {item.category}
               </span>
+              {item.level && (
+                <span
+                  className="inline-flex px-3 py-1 rounded-full text-[0.7rem] font-bold tracking-[0.06em] uppercase"
+                  style={{
+                    background: item.level === "Advanced" ? "var(--primary)" : "rgba(255,255,255,0.18)",
+                    color: "#fff",
+                    backdropFilter: "blur(4px)",
+                    border: "1px solid rgba(255,255,255,0.25)",
+                  }}
+                >
+                  {item.level}
+                </span>
+              )}
               <span
                 className="text-[0.78rem] font-medium"
                 style={{ color: "rgba(255,255,255,0.55)" }}
@@ -207,12 +220,25 @@ export default function HeroCarousel({ slides, onOpen, interval = 5000 }: Props)
                 onMouseLeave={(e) => (e.currentTarget.style.background = "var(--surface-container-lowest)")}
                 onClick={() => onOpen(slide.item)}
               >
-                <span
-                  className="inline-flex self-start px-2.5 py-1 rounded-full text-[0.68rem] font-bold tracking-[0.05em] uppercase mb-2"
-                  style={{ background: "var(--surface-container-highest)", color: "var(--on-surface)" }}
-                >
-                  {slide.category}
-                </span>
+                <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                  <span
+                    className="inline-flex px-2.5 py-1 rounded-full text-[0.68rem] font-bold tracking-[0.05em] uppercase"
+                    style={{ background: "var(--surface-container-highest)", color: "var(--on-surface)" }}
+                  >
+                    {slide.category}
+                  </span>
+                  {slide.item.level && (
+                    <span
+                      className="inline-flex px-2.5 py-1 rounded-full text-[0.68rem] font-bold tracking-[0.05em] uppercase"
+                      style={{
+                        background: slide.item.level === "Advanced" ? "var(--primary)" : "rgba(26,28,29,0.72)",
+                        color: "#fff",
+                      }}
+                    >
+                      {slide.item.level}
+                    </span>
+                  )}
+                </div>
                 <h3
                   className="font-semibold leading-[1.35] mb-2 line-clamp-3"
                   style={{ fontSize: "0.95rem", color: "var(--on-surface)", margin: "0 0 8px" }}

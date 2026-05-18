@@ -48,6 +48,42 @@ async function fetchRssText(url: string): Promise<string> {
 function extractCDATA(raw: string) {
   return raw.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").trim();
 }
+
+/** 상대 URL → 절대 URL 변환 */
+function toAbsoluteUrl(link: string, sourceUrl: string): string {
+  if (link.startsWith("http")) return link;
+  try {
+    const base = new URL(sourceUrl);
+    if (link.startsWith("/")) return `${base.protocol}//${base.host}${link}`;
+    return `${base.protocol}//${base.host}/${link}`;
+  } catch {
+    return link;
+  }
+}
+
+/** Google News 리다이렉트 → 실제 원문 URL 추출 */
+async function resolveGoogleNewsUrl(url: string): Promise<string> {
+  if (!url.includes("news.google.com")) return url;
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; MonolithBot/1.0)" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(8000),
+    });
+    // 리다이렉트 후 최종 URL 반환
+    if (res.url && !res.url.includes("news.google.com")) return res.url;
+    // 리다이렉트가 안 된 경우 HTML에서 실제 링크 추출
+    const html = await res.text();
+    const canonical = html.match(/<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["']/i)?.[1];
+    if (canonical && !canonical.includes("news.google.com")) return canonical;
+    const jsRedirect = html.match(/window\.location\.href\s*=\s*["']([^"']+)["']/)?.[1];
+    if (jsRedirect && jsRedirect.startsWith("http")) return jsRedirect;
+  } catch {
+    // 실패 시 원본 URL 그대로 사용
+  }
+  return url;
+}
+
 function parseRSS(xml: string) {
   const items: { title: string; link: string; pubDate: string }[] = [];
   const matches = xml.matchAll(/<item>([\s\S]*?)<\/item>/gi);
@@ -84,7 +120,18 @@ async function fetchArticleText(url: string): Promise<string> {
   }
 }
 
-/* ── OG 이미지 추출 (Edge Function 내 직접 구현) ── */
+/* ── 카테고리 기본 이미지 (OG 추출 완전 실패 시 최종 폴백) ── */
+const CATEGORY_DEFAULT_IMAGES: Record<string, string> = {
+  AI:      "https://images.unsplash.com/photo-1677442135703-1787eea5ce01?w=800&fit=crop&q=80",
+  MICE:    "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&fit=crop&q=80",
+  TOURISM: "https://images.unsplash.com/photo-1539635278303-d4002c07eae3?w=800&fit=crop&q=80",
+};
+function getCategoryDefaultImage(category: string): string {
+  return CATEGORY_DEFAULT_IMAGES[category.toUpperCase()] ??
+    "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=800&fit=crop&q=80";
+}
+
+/* ── OG 이미지 추출 — 3단계 시도 ── */
 async function fetchOgImage(url: string): Promise<string | null> {
   try {
     const res = await fetch(url, {
@@ -92,11 +139,30 @@ async function fetchOgImage(url: string): Promise<string | null> {
       signal: AbortSignal.timeout(5000),
     });
     const html = await res.text();
-    const og =
+
+    // 1단계: OG / Twitter 메타 태그
+    const meta =
       html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i) ??
       html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i) ??
-      html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i);
-    return og?.[1] ?? null;
+      html.match(/<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i) ??
+      html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i);
+    if (meta?.[1]?.startsWith("http")) return meta[1];
+
+    // 2단계: 본문 첫 번째 의미 있는 <img> 태그
+    const imgMatches = [...html.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*/gi)];
+    for (const match of imgMatches) {
+      const src = match[1];
+      if (!src.startsWith("http")) continue;
+      const lower = src.toLowerCase();
+      if (["icon", "logo", "avatar", "sprite", "banner", "pixel", "tracking", ".svg", ".gif"]
+        .some((x) => lower.includes(x))) continue;
+      const tagStr = match[0];
+      const w = tagStr.match(/width=["']?(\d+)/)?.[1];
+      if (w && parseInt(w) < 200) continue;
+      return src;
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -308,11 +374,24 @@ async function generateArticle(
 - 3~4: 관련성 낮거나 원문 접근 불가로 내용 빈약
 - 1~2: 카테고리와 무관하거나 정보 없음
 
-레벨 기준:
-- Beginner: 전문 배경지식 없어도 이해 가능
-- Intermediate: 업계 기본 지식 보유자 대상
-- Advanced: 깊은 전문성 필요
+레벨 판정 (체크리스트로 엄격히 판단):
 
+Beginner — 다음 중 1개 이상 해당하면 Beginner:
+  * 기술·서비스·제도를 처음 소개하는 입문성 기사
+  * "~란 무엇인가", "~가 뜨는 이유" 등 개념·배경 설명 중심
+  * 업계에 막 입문한 신입 직원이 맥락 파악을 위해 읽으면 좋을 내용
+  * 특정 트렌드·기술이 왜 중요한지 배경부터 설명하는 기사
+  * 실무 경험 없이도 전체 흐름을 이해할 수 있는 내용
+
+Advanced — 다음 중 1개 이상 해당하면 Advanced:
+  * 기술 아키텍처·알고리즘·정책 조항의 심층 분석
+  * 시장 구조 변화·경쟁 구도·M&A·투자 전략 분석
+  * 정량 데이터(수치, 통계)를 바탕으로 2차·3차 파급효과 분석
+  * C레벨·투자자 의사결정에 직결되는 전략적 내용
+
+Intermediate — 위 두 조건 모두 해당 없을 때
+
+레벨별 작성 지침:
 [Beginner] ${levelPrompts["Beginner"] ?? "쉽고 명확하게 작성하세요."}
 [Intermediate] ${levelPrompts["Intermediate"] ?? "실무 담당자 관점에서 작성하세요."}
 [Advanced] ${levelPrompts["Advanced"] ?? "전략적 심층 분석으로 작성하세요."}
@@ -393,7 +472,9 @@ Deno.serve(async (req) => {
       const { error } = await supabase.from("news").insert({
         title: generated.title, summary_short: generated.summary_short,
         content_long: generated.content_long, implications: generated.implications,
-        level: generated.level ?? "Intermediate", image_url, original_url: url,
+        level: generated.level ?? "Intermediate",
+        image_url: image_url ?? getCategoryDefaultImage(category),
+        original_url: url,
         category, quality_score: score, is_published: shouldAutoPublish,
         priority_score: source.weight * 10, display_order: 1000 - score * 10,
         published_at: shouldAutoPublish ? new Date().toISOString() : safeDateISO(pubDate),
@@ -445,9 +526,13 @@ Deno.serve(async (req) => {
       const rssItems = parseRSS(xml);
       console.log(`[RSS] ${source.source_name}: ${rssItems.length}개`);
       for (const item of rssItems) {
-        if (existingUrls.has(item.link)) { results.skipped++; continue; }
-        const [articleText, image_url] = await Promise.all([fetchArticleText(item.link), fetchOgImage(item.link)]);
-        await insertArticle(articleText, item.link, image_url, item.pubDate);
+        // 1) 상대 URL → 절대 URL
+        const absLink = toAbsoluteUrl(item.link, source.url);
+        // 2) Google News → 실제 원문 URL
+        const resolvedLink = await resolveGoogleNewsUrl(absLink);
+        if (existingUrls.has(resolvedLink)) { results.skipped++; continue; }
+        const [articleText, image_url] = await Promise.all([fetchArticleText(resolvedLink), fetchOgImage(resolvedLink)]);
+        await insertArticle(articleText, resolvedLink, image_url, item.pubDate);
       }
     } catch (e) {
       console.error(`[RSS 실패] ${source.source_name}:`, e);
