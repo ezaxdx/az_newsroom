@@ -494,7 +494,8 @@ Deno.serve(async (req) => {
         priority_score: source.weight * 10, display_order: 1000 - score * 10,
         published_at: shouldAutoPublish ? new Date().toISOString() : safeDateISO(pubDate),
       });
-      if (error) { results.failed++; } else { results.created++; existingUrls.add(url); }
+      if (error) { console.error("[DB insert 실패]", error.message, url); results.failed++; }
+      else { results.created++; existingUrls.add(url); }
     };
 
     if (source.source_type === "url") {
@@ -521,12 +522,11 @@ Deno.serve(async (req) => {
         const gmailItems = await fetchGmailNewsletters(cfg);
         console.log(`[Gmail] ${source.source_name}: ${gmailItems.length}개`);
         for (const item of gmailItems) {
+          // gmail:msgId → 원문 링크 없음, 스킵
+          if (item.link.startsWith("gmail:")) { results.skipped++; continue; }
           if (existingUrls.has(item.link)) { results.skipped++; continue; }
-          const isRef = item.link.startsWith("gmail:");
-          const [articleText, image_url] = isRef
-            ? ["", null]
-            : await Promise.all([fetchArticleText(item.link), fetchOgImage(item.link)]);
-          await insertArticle(articleText, isRef ? source.url : item.link, image_url, item.pubDate);
+          const [articleText, image_url] = await Promise.all([fetchArticleText(item.link), fetchOgImage(item.link)]);
+          await insertArticle(articleText, item.link, image_url, item.pubDate);
         }
       } catch (e) {
         console.error(`[Gmail 실패]`, e);
@@ -540,14 +540,19 @@ Deno.serve(async (req) => {
       const xml = await fetchRssText(source.url);
       const rssItems = parseRSS(xml);
       console.log(`[RSS] ${source.source_name}: ${rssItems.length}개`);
-      for (const item of rssItems) {
-        // 1) 상대 URL → 절대 URL
-        const absLink = toAbsoluteUrl(item.link, source.url);
-        // 2) Google News → 실제 원문 URL
-        const resolvedLink = await resolveGoogleNewsUrl(absLink);
-        if (existingUrls.has(resolvedLink)) { results.skipped++; continue; }
-        const [articleText, image_url] = await Promise.all([fetchArticleText(resolvedLink), fetchOgImage(resolvedLink)]);
-        await insertArticle(articleText, resolvedLink, image_url, item.pubDate);
+
+      // URL 해석 병렬처리 후 기사 생성은 순차처리 (Gemini 병렬 호출 방지)
+      const resolved = await Promise.all(
+        rssItems.map(async (item) => {
+          const absLink = toAbsoluteUrl(item.link, source.url);
+          const resolvedLink = await resolveGoogleNewsUrl(absLink);
+          return { ...item, link: resolvedLink };
+        })
+      );
+      for (const item of resolved) {
+        if (existingUrls.has(item.link)) { results.skipped++; continue; }
+        const [articleText, image_url] = await Promise.all([fetchArticleText(item.link), fetchOgImage(item.link)]);
+        await insertArticle(articleText, item.link, image_url, item.pubDate);
       }
     } catch (e) {
       console.error(`[RSS 실패] ${source.source_name}:`, e);
@@ -555,6 +560,7 @@ Deno.serve(async (req) => {
     }
   }
 
+  console.log(`[완료] created:${results.created} skipped:${results.skipped} failed:${results.failed}`);
   return new Response(JSON.stringify({ ok: true, ...results }), {
     headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
   });
