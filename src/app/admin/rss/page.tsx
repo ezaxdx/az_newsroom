@@ -129,11 +129,12 @@ export default function RssPage() {
   const allCats = ["ALL", ...Array.from(new Set(sources.map((s) => s.default_category))).sort()];
   const filteredSources = filterCat === "ALL" ? sources : sources.filter((s) => s.default_category === filterCat);
 
-  // 유형별 소스 분리 (필터 적용)
-  const rssSources = filteredSources.filter((s) => (s.source_type ?? "rss") === "rss");
-  const urlSources = filteredSources.filter((s) => s.source_type === "url");
-  const apiSources = filteredSources.filter((s) => s.source_type === "api");
-  const gmailSources = filteredSources.filter((s) => s.source_type === "gmail");
+  // 유형별 소스 분리 (필터 적용) — active 소스 우선 정렬
+  const activeFirst = (a: { is_active: boolean }, b: { is_active: boolean }) => Number(b.is_active) - Number(a.is_active);
+  const rssSources = filteredSources.filter((s) => (s.source_type ?? "rss") === "rss").sort(activeFirst);
+  const urlSources = filteredSources.filter((s) => s.source_type === "url").sort(activeFirst);
+  const apiSources = filteredSources.filter((s) => s.source_type === "api").sort(activeFirst);
+  const gmailSources = filteredSources.filter((s) => s.source_type === "gmail").sort(activeFirst);
 
   const meta = TYPE_META[form.source_type];
 
