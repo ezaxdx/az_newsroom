@@ -20,7 +20,7 @@ async function getKey(): Promise<CryptoKey> {
   if (!keyHex) throw new Error("GMAIL_ENCRYPTION_KEY 환경변수가 없습니다");
   const keyBytes = hexToBytes(keyHex.slice(0, 64)); // 32바이트 = 256비트
   return crypto.subtle.importKey(
-    "raw", keyBytes, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]
+    "raw", keyBytes.buffer as ArrayBuffer, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]
   );
 }
 

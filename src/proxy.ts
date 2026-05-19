@@ -11,7 +11,7 @@ async function hashPassword(password: string): Promise<string> {
     .join("");
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // 로그인 페이지와 auth API는 통과
