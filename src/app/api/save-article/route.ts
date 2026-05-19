@@ -25,8 +25,8 @@ export async function POST(req: NextRequest) {
     category: body.category,
     level: body.level ?? "Intermediate",
     is_published: body.is_published ?? false,
-    priority_score: 50,
-    display_order: 999,
+    priority_score: 100,
+    display_order: 0,
     published_at: new Date().toISOString(),
   }).select().single();
 
