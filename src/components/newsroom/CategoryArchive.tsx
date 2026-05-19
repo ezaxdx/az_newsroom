@@ -1,18 +1,20 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Search, Calendar, ChevronDown } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { Search, Calendar, Loader2 } from "lucide-react";
 import { NewsItem } from "@/lib/types";
 import { logEvent } from "@/lib/analytics";
 import { LEVEL_STYLE_LIGHT, getCategoryBg } from "@/lib/news-ui";
 import InsightModal from "./InsightModal";
 
-const DEFAULT_DATE_GROUPS = 4;
-
 type Props = {
   category: string;
   items: NewsItem[];
 };
+
+function toDateStr(d: Date) {
+  return d.toISOString().slice(0, 10);
+}
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("ko-KR", { year: "numeric", month: "long", day: "numeric" });
@@ -28,18 +30,37 @@ function groupByDate(items: NewsItem[]) {
   return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
 }
 
-export default function CategoryArchive({ category, items }: Props) {
+const TWO_WEEKS_AGO = toDateStr(new Date(Date.now() - 14 * 24 * 60 * 60 * 1000));
+
+export default function CategoryArchive({ category, items: initialItems }: Props) {
+  const [allItems, setAllItems] = useState<NewsItem[]>(initialItems);
   const [search, setSearch] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
+  const [dateFrom, setDateFrom] = useState(TWO_WEEKS_AGO);
   const [dateTo, setDateTo] = useState("");
   const [levelFilter, setLevelFilter] = useState<string>("Total");
   const [activeItem, setActiveItem] = useState<NewsItem | null>(null);
-  const [showAll, setShowAll] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const hasFilter = !!(search || dateFrom || dateTo || levelFilter !== "Total");
+  // dateFrom이 2주 이전으로 변경되면 DB에서 추가 로드
+  useEffect(() => {
+    if (!dateFrom || dateFrom >= TWO_WEEKS_AGO) return;
+
+    setLoading(true);
+    const params = new URLSearchParams({ category, from: dateFrom, to: TWO_WEEKS_AGO });
+    fetch(`/api/news?${params}`)
+      .then((r) => r.json())
+      .then((data: NewsItem[]) => {
+        setAllItems((prev) => {
+          const existingIds = new Set(prev.map((i) => i.id));
+          return [...prev, ...data.filter((i) => !existingIds.has(i.id))];
+        });
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [dateFrom, category]);
 
   const filtered = useMemo(() => {
-    return items.filter((item) => {
+    return allItems.filter((item) => {
       const day = item.published_at.slice(0, 10);
       if (search) {
         const q = search.toLowerCase();
@@ -50,17 +71,23 @@ export default function CategoryArchive({ category, items }: Props) {
       if (levelFilter !== "Total" && item.level !== levelFilter) return false;
       return true;
     });
-  }, [items, search, dateFrom, dateTo, levelFilter]);
+  }, [allItems, search, dateFrom, dateTo, levelFilter]);
 
   const grouped = groupByDate(filtered);
-  // 필터 없을 때는 기본 4개 날짜 그룹만 표시
-  const visibleGroups = hasFilter || showAll ? grouped : grouped.slice(0, DEFAULT_DATE_GROUPS);
-  const hasMore = !hasFilter && !showAll && grouped.length > DEFAULT_DATE_GROUPS;
 
   const handleOpen = (item: NewsItem) => {
     setActiveItem(item);
     logEvent({ event_type: "detail_view", news_id: item.id });
   };
+
+  const handleReset = () => {
+    setSearch("");
+    setDateFrom(TWO_WEEKS_AGO);
+    setDateTo("");
+    setLevelFilter("Total");
+  };
+
+  const isDirty = search || dateFrom !== TWO_WEEKS_AGO || dateTo || levelFilter !== "Total";
 
   return (
     <>
@@ -132,15 +159,18 @@ export default function CategoryArchive({ category, items }: Props) {
           })}
         </div>
 
-        {/* Result count */}
-        <span className="text-xs ml-auto" style={{ color: "var(--on-surface-variant)" }}>
-          {filtered.length}건
-        </span>
+        {/* 결과 수 + 로딩 */}
+        <div className="flex items-center gap-2 ml-auto">
+          {loading && <Loader2 size={13} className="animate-spin" style={{ color: "var(--on-surface-variant)" }} />}
+          <span className="text-xs" style={{ color: "var(--on-surface-variant)" }}>
+            {filtered.length}건
+          </span>
+        </div>
 
         {/* Reset */}
-        {(search || dateFrom || dateTo || levelFilter !== "Total") && (
+        {isDirty && (
           <button
-            onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setLevelFilter("Total"); }}
+            onClick={handleReset}
             className="h-9 px-3 rounded-md text-xs font-medium transition-colors hover:opacity-80"
             style={{ background: "var(--surface-container-highest)", color: "var(--on-surface-variant)", border: "none", cursor: "pointer" }}
           >
@@ -153,13 +183,12 @@ export default function CategoryArchive({ category, items }: Props) {
       {grouped.length === 0 ? (
         <div className="flex items-center justify-center py-24 text-sm"
           style={{ color: "var(--on-surface-variant)" }}>
-          조건에 맞는 기사가 없습니다.
+          {loading ? "불러오는 중..." : "조건에 맞는 기사가 없습니다."}
         </div>
       ) : (
         <div className="flex flex-col gap-12">
           {grouped.map(([day, dayItems]) => (
             <section key={day}>
-              {/* Date header */}
               <div className="flex items-center gap-3 mb-5">
                 <span className="block w-12 h-1" style={{ background: "var(--primary)" }} />
                 <p className="m-0 text-[0.75rem] font-semibold tracking-[0.05em] uppercase"
@@ -172,24 +201,16 @@ export default function CategoryArchive({ category, items }: Props) {
                 </span>
               </div>
 
-              {/* Flexible grid: 1~4 columns based on article count */}
-              <div
-                className="grid gap-6"
-                style={{ gridTemplateColumns: "repeat(4, 1fr)" }}
-              >
+              <div className="grid gap-6" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
                 {dayItems.map((item) => (
                   <article
                     key={item.id}
                     className="flex flex-col cursor-pointer group"
                     onClick={() => handleOpen(item)}
                   >
-                    {/* Thumbnail + level badge */}
                     <div
                       className="relative w-full mb-3 rounded overflow-hidden"
-                      style={{
-                        aspectRatio: "16/9",
-                        background: getCategoryBg(item.category, item.image_url),
-                      }}
+                      style={{ aspectRatio: "16/9", background: getCategoryBg(item.category, item.image_url) }}
                     >
                       {item.image_url && (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -209,7 +230,6 @@ export default function CategoryArchive({ category, items }: Props) {
                       )}
                     </div>
 
-                    {/* Title */}
                     <h3
                       className="font-bold leading-[1.3] tracking-[-0.01em] mb-2 group-hover:underline underline-offset-4"
                       style={{ fontSize: "1rem", color: "var(--on-surface)", margin: 0 }}
@@ -217,7 +237,6 @@ export default function CategoryArchive({ category, items }: Props) {
                       {item.title}
                     </h3>
 
-                    {/* Summary */}
                     <p className="text-[0.83rem] leading-relaxed line-clamp-3 mt-1 mb-3"
                       style={{ color: "var(--on-surface-variant)", margin: 0 }}>
                       {item.summary_short}

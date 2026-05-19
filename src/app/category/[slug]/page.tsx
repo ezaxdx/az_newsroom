@@ -61,14 +61,17 @@ async function fetchCategoryItems(category: string): Promise<NewsItem[]> {
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) return makeMockItems(category);
   try {
     const supabase = createAdminClient();
+    const twoWeeksAgo = new Date();
+    twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
     const { data, error } = await supabase
       .from("news")
       .select("*")
       .eq("is_published", true)
       .ilike("category", category)
+      .gte("published_at", twoWeeksAgo.toISOString())
       .order("published_at", { ascending: false });
-    if (error || !data?.length) return makeMockItems(category);
-    return data as NewsItem[];
+    if (error) throw error;
+    return (data ?? []) as NewsItem[];
   } catch {
     return makeMockItems(category);
   }
