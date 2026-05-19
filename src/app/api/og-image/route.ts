@@ -19,7 +19,18 @@ export async function GET(req: NextRequest) {
     const twitterMatch = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)
       ?? html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i);
 
-    const image = ogMatch?.[1] ?? twitterMatch?.[1] ?? null;
+    const rawImage = ogMatch?.[1] ?? twitterMatch?.[1] ?? null;
+
+    // 상대 경로 → 절대 경로 변환
+    let image: string | null = null;
+    if (rawImage) {
+      try {
+        image = new URL(rawImage, url).href;
+      } catch {
+        image = rawImage;
+      }
+    }
+
     return NextResponse.json({ image });
   } catch {
     return NextResponse.json({ image: null });
