@@ -196,7 +196,7 @@ export default function NewArticlePage() {
         body: JSON.stringify({ url: aiUrl.trim(), category: fields.category }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "생성 실패");
+      if (!res.ok) throw new Error(data.detail ?? data.error ?? "생성 실패");
       setFields((prev) => ({
         ...prev,
         title: data.title ?? prev.title,

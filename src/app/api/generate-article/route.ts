@@ -72,20 +72,27 @@ ${articleText}`;
 
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: "application/json" },
         }),
         signal: AbortSignal.timeout(30000),
       }
     );
     const json = await res.json();
     if (!res.ok) throw new Error(JSON.stringify(json));
-    const raw = json.candidates?.[0]?.content?.parts?.[0]?.text?.trim()
-      ?.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "") ?? "";
+
+    // thinking 모델의 경우 parts 중 thought:true 가 아닌 첫 번째 텍스트 파트 사용
+    const parts: Array<{ text?: string; thought?: boolean }> =
+      json.candidates?.[0]?.content?.parts ?? [];
+    const textPart = parts.find((p) => !p.thought && typeof p.text === "string");
+    const raw = (textPart?.text ?? "").trim()
+      .replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+    if (!raw) throw new Error("빈 응답");
     const parsed = JSON.parse(raw);
     const image_url = await ogImagePromise;
 
@@ -99,7 +106,11 @@ ${articleText}`;
       category: category.toUpperCase(),
     });
   } catch (e) {
-    console.error("generate-article error:", e);
-    return NextResponse.json({ error: "AI 생성 중 오류가 발생했습니다." }, { status: 500 });
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[generate-article] Gemini 오류:", msg);
+    return NextResponse.json(
+      { error: "AI 생성 중 오류가 발생했습니다.", detail: msg },
+      { status: 500 }
+    );
   }
 }
