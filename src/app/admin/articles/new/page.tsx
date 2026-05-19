@@ -15,6 +15,7 @@ type ArticleFields = {
   image_url: string;
   original_url: string;
   category: string;
+  level: string;
 };
 
 const EMPTY: ArticleFields = {
@@ -25,9 +26,12 @@ const EMPTY: ArticleFields = {
   image_url: "",
   original_url: "",
   category: "AI",
+  level: "Intermediate",
 };
 
 /* ── Shared field editor ── */
+const LEVELS = ["Beginner", "Intermediate", "Advanced"] as const;
+
 function Fields({
   fields,
   onChange,
@@ -51,7 +55,7 @@ function Fields({
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 1fr" }}>
+      <div className="grid gap-4" style={{ gridTemplateColumns: "1fr 1fr 1fr" }}>
         {/* Category */}
         <label className="flex flex-col gap-1.5">
           <span className="text-xs font-semibold tracking-wide uppercase" style={{ color: "var(--on-surface-variant)" }}>
@@ -64,6 +68,22 @@ function Fields({
           >
             {categories.map((c) => (
               <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </label>
+
+        {/* Level */}
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-semibold tracking-wide uppercase" style={{ color: "var(--on-surface-variant)" }}>
+            레벨
+          </span>
+          <select
+            value={fields.level}
+            onChange={(e) => onChange({ level: e.target.value })}
+            style={inputStyle}
+          >
+            {LEVELS.map((l) => (
+              <option key={l} value={l}>{l}</option>
             ))}
           </select>
         </label>
